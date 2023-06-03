@@ -13,6 +13,9 @@ from demucs.pretrained import get_model
 from demucs.audio import AudioFile, save_audio
 
 from celery import Celery
+import requests
+import json
+
 
 app = Celery(broker='pyamqp://guest@localhost//')
 logging.basicConfig(level=logging.INFO, format='%(message)s')
@@ -47,10 +50,11 @@ def processMusic(input):
     sources = sources * ref.std() + ref.mean()
 
     # store the model
-    # for source, name in zip(sources, model.sources):
-    #     stem = f'{args.o}/{name}.wav'
-    #     save_audio(source, str(stem), samplerate=model.samplerate)
-
+    for source, name in zip(sources, model.sources):
+        array = source.numpy()
+        json_data = json.dumps(array.tolist())
+        data = {'name': name, 'data': json_data, 'samplerate': model.samplerate}
+        requests.post('http://localhost:5000/store', json=data)
     return "Hello World"
 
     
