@@ -29,7 +29,7 @@ def helloWorld():
 
 
 @app.task
-def processMusic(input):
+def processMusic(input, id):
     # get the model
     model = get_model(name='htdemucs')
     model.cpu()
@@ -55,7 +55,7 @@ def processMusic(input):
     for source, name in zip(sources, model.sources):
         array = source.numpy()
         json_data = json.dumps(array.tolist())
-        data = {'name': name, 'data': json_data, 'samplerate': model.samplerate}
+        data = {'name': name, 'data': json_data, 'samplerate': model.samplerate, 'id': id}
         requests.post('http://localhost:5000/store', json=data)
     return "Hello World"
 
