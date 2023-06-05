@@ -17,7 +17,9 @@ import requests
 import json
 
 
-app = Celery(broker='pyamqp://guest@localhost//')
+app = Celery('worker', backend='rpc://', broker='amqp://guest:guest@localhost:5672//')
+app.config_from_object('celeryconfig')
+
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
 
