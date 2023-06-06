@@ -10,10 +10,9 @@ import tempfile
 
 from demucs.apply import apply_model
 from demucs.pretrained import get_model
-from demucs.audio import AudioFile, save_audio
+from demucs.audio import AudioFile
 
 from celery import Celery
-import requests
 import json
 
 
@@ -22,10 +21,6 @@ app.config_from_object('celeryconfig')
 
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
-
-@app.task
-def helloWorld():
-    return 'hello'
 
 
 @app.task
@@ -51,12 +46,15 @@ def processMusic(input, id):
     sources = apply_model(model, wav[None], device='cpu', progress=True, num_workers=1)[0]
     sources = sources * ref.std() + ref.mean()
 
-    # store the model
+    # array to store each part of the music
+    parts = []
+
+    # will send each instrument to the server
     for source, name in zip(sources, model.sources):
         array = source.numpy()
         json_data = json.dumps(array.tolist())
         data = {'name': name, 'data': json_data, 'samplerate': model.samplerate, 'id': id}
-        requests.post('http://localhost:5000/store', json=data)
-    return "Hello World" # dar return a base64 do audio
+        parts.append(data)
 
-    
+    # will send the 4 parts of the music to the server
+    return parts

@@ -1,12 +1,13 @@
 from worker import processMusic
 import argparse
 import base64
-from pydub import AudioSegment
 from flask import Flask, request, send_file, render_template, jsonify, redirect, url_for
 
 import random
 from io import BytesIO
 from mutagen.id3 import ID3
+from pydub import AudioSegment
+import decimal
 
 # import json
 # import numpy as np
@@ -122,30 +123,36 @@ def music_id_post(id):
     # the music is going to be processed by the worker here
     musicBytes = idBytes[id]
 
-    # process the music with the selected tracks
-    callback = processMusic.apply_async(args=(encodeMusic(musicBytes), id))
+    # splits the music into chunks of 5 minutes
+    chunks = splitMusic(musicBytes, 60 * 5)
 
-    callbacks[id] = callback
-    # print('callback: ', callback)
+    # iterate through the chunks
+    for chunk in chunks:
+        # process the music with the selected tracks
+        callback = processMusic.apply_async(args=(encodeMusic(musicBytes), id))
 
-    # result of the celery task
-    # result = callback.get()
+        if id in callbacks.keys():
+            callbacks[id].append(callback)
+        else:
+            callbacks[id] = [callback]
 
-    #print('id: ', id)
     return 'The music is being processed. To check the status of the process and later download the file, go to: localhost:5000/music/' + str(id)
 
 @app.route('/music/<id>', methods=['GET'])
 def music_id_get(id):
     ## get the state of the task, if it is at 100% it is done -> generate the file
-    callback = callbacks[int(id)]
+    cbs = callbacks[int(id)]
+    total = 0
+    successes = 0
 
-    print(callback.state) # if not done, it will return PENDING
-    print(callback.info) # if done, it will return the result of the task
-    
-    #if (callback.state == 'PENDING'):
+    for cb in cbs:
+        total += 1
+        if(cb.state == 'SUCCESS'):
+            successes += 1
               
-
-    return 'ok'
+    # print(str(successes) + " -----> " + str(total))
+    percentage = int(successes / total * 100)
+    return str(percentage)
 
 # creates the music object
 def createMusicObj(name, band):
@@ -203,26 +210,30 @@ def generateID():
     id_usados.append(id)
     return id
     
+# function to encode the music bytes to base64
 def encodeMusic(musicBytes):
     encoded = base64.b64encode(musicBytes).decode('utf-8')
     return encoded
 
-# # function to split the audio file into segments
-# def getAudioSegments(audioFile, segmentLength):
-#     audio = AudioSegment.from_mp3(audioFile)
-#     audioLength = len(audio)
-#     start = 0
-#     end = 0
-#     audioSegments = []
-#     while end < audioLength:
-#         end = start + segmentLength
-#         if end > audioLength:
-#             end = audioLength
-#         audioSegments.append(audio[start:end])
-#         start = end
-#     return audioSegments
+# function to split the audio file into segments
+def splitMusic(musicBytes, chunkDuration):
+    # Create an audio segment from the input music bytes
+    audio = AudioSegment.from_file(BytesIO(musicBytes), format='mp3')
 
-# # fubction to encode the audio file
+    # Calculate the chunk length in milliseconds
+    length = int(chunkDuration * 1000)
+
+    chunks = []
+    totalDuration = len(audio)
+
+    for start in range(0, totalDuration, length):
+        end = min(start + length, totalDuration)
+        chunk = audio[start:end]
+        chunks.append(chunk.export(format='mp3').read())
+
+    return chunks
+
+# # function to encode the audio file
 # def encodeSong(path):
 #     with open(path, 'rb') as file:
 #         data = file.read()
