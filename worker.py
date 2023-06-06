@@ -10,10 +10,11 @@ import tempfile
 
 from demucs.apply import apply_model
 from demucs.pretrained import get_model
-from demucs.audio import AudioFile
+from demucs.audio import AudioFile, save_audio 
 
 from celery import Celery
 import json
+import tempfile
 
 
 app = Celery('worker', backend='rpc://', broker='amqp://guest:guest@localhost:5672//')
@@ -47,14 +48,19 @@ def processMusic(input, id):
     sources = sources * ref.std() + ref.mean()
 
     # array to store each part of the music
-    parts = []
-
+    parts = {}
     # will send each instrument to the server
     for source, name in zip(sources, model.sources):
-        array = source.numpy()
-        json_data = json.dumps(array.tolist())
-        data = {'name': name, 'data': json_data, 'samplerate': model.samplerate, 'id': id}
-        parts.append(data)
 
+        with tempfile.NamedTemporaryFile(suffix='.wav') as tf:
+            tempPath = tf.name
+
+            save_audio(source, str(tempPath), samplerate=model.samplerate)
+            parts[name] = encodeMusic(tf.read())
     # will send the 4 parts of the music to the server
     return parts
+
+# function to encode the music bytes to base64
+def encodeMusic(musicBytes):
+    encoded = base64.b64encode(musicBytes).decode('utf-8')
+    return encoded

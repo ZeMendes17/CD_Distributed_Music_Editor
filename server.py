@@ -1,5 +1,4 @@
 from worker import processMusic
-import argparse
 import base64
 from flask import Flask, request, send_file, render_template, jsonify, redirect, url_for
 
@@ -7,7 +6,7 @@ import random
 from io import BytesIO
 from mutagen.id3 import ID3
 from pydub import AudioSegment
-import decimal
+import os
 
 # import json
 # import numpy as np
@@ -145,14 +144,44 @@ def music_id_get(id):
     total = 0
     successes = 0
 
+    temp = None
+
     for cb in cbs:
+        print(cb.state) # shows the state of each task sent SUCCESS, PENDING, FAILURE
         total += 1
         if(cb.state == 'SUCCESS'):
             successes += 1
               
     # print(str(successes) + " -----> " + str(total))
     percentage = int(successes / total * 100)
-    return str(percentage)
+
+    # if the music is still being processed
+    if percentage != 100:
+        return str(percentage)
+
+    # if it is at 100% but info is not yet available (should not happen)
+    for cb in cbs:
+        if(cb.info == None):
+            return str(percentage) 
+
+    # get the instruments selected by the user
+    instruments = idTracks[int(id)]
+    print(instruments)
+
+    # create the music directory to store the .wav files
+    if not os.path.exists('static/' + str(id)):
+        os.makedirs('static/' + str(id))
+
+    # writes each of the wanted sound .wav files in the static folder to be downloaded
+    for cb in cbs: 
+        for instrument in instruments:
+            if instrument in cb.info.keys():
+                with(open('static/' + str(id) + '/' + instrument + '.wav', 'wb')) as f:
+                    f.write(base64.b64decode(cb.info[instrument]))
+
+
+
+    return 'ok'
 
 # creates the music object
 def createMusicObj(name, band):
@@ -232,13 +261,6 @@ def splitMusic(musicBytes, chunkDuration):
         chunks.append(chunk.export(format='mp3').read())
 
     return chunks
-
-# # function to encode the audio file
-# def encodeSong(path):
-#     with open(path, 'rb') as file:
-#         data = file.read()
-#     encoded = base64.b64encode(data).decode('utf-8')
-#     return encoded
 
 # # function to convert AudioSegment to path
 # def convertToMp3(audioSegment):
