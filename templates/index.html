@@ -278,6 +278,33 @@
     <div class="method-summary">Processar uma musica (<span class="nickname">process</span>)</div>
     <div class="method-notes">Requisitar o processamento da música &lt;music_id&gt; com apenas os instrumentos listados através do seu identificador num ficheiro JSON submetido.</div>
 
+      <form method="POST" id="form" action="redirect">
+        <input type="number" placeholder="Insert a music ID" name="id" value="" id="idInserted">
+        <br>
+        <label>
+          <input type="checkbox" name="vocals" value="Vocals">
+          Vocals
+        </label>
+        <br>
+        <label>
+          <input type="checkbox" name="drums" value="Drums">
+          Drums
+        </label>
+        <br>
+        <label>
+          <input type="checkbox" name="bass" value="Bass">
+          Bass
+        </label>
+        <br>
+        <label>
+          <input type="checkbox" name="other" value="Others">
+          Others
+        </label>
+        <br>
+        <button>Execute</button>
+      </form>
+
+
     <h3 class="field-label">Path parameters</h3>
     <div class="field-items">
       <div class="param">music_id (required)</div>
@@ -606,5 +633,19 @@
     <div class="field-items">
           </div>  <!-- field-items -->
   </div>
+
+  <script>
+    function getID() {
+      var inputValue = document.getElementById("idInserted").value;
+      var form = document.getElementById("form");
+
+      if(inputValue == "") {
+        alert("Please insert an ID");
+      } else {
+        form.action = "localhost:5000/music/" + inputValue;
+        from.submit();
+      }
+    }
+  </script>
   </body>
 </html>

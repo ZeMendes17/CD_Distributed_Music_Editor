@@ -57,6 +57,6 @@ def processMusic(input, id):
         json_data = json.dumps(array.tolist())
         data = {'name': name, 'data': json_data, 'samplerate': model.samplerate, 'id': id}
         requests.post('http://localhost:5000/store', json=data)
-    return "Hello World"
+    return "Hello World" # dar return a base64 do audio
 
     

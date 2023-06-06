@@ -1,19 +1,18 @@
-from worker import helloWorld, processMusic
+from worker import processMusic
 import argparse
 import base64
 from pydub import AudioSegment
-from flask import Flask, request, send_file, render_template, jsonify
-
-from demucs.audio import save_audio
+from flask import Flask, request, send_file, render_template, jsonify, redirect, url_for
 
 import random
 from io import BytesIO
 from mutagen.id3 import ID3
 
-import json
-import numpy as np
-import torch
-import tempfile
+# import json
+# import numpy as np
+# import torch
+# import tempfile
+
 
 
 app = Flask(__name__)
@@ -22,6 +21,8 @@ temp_files = {}
 id_usados = []
 musicas = []
 idBytes = {}
+idTracks = {}
+callbacks = {}
 
 
 class Music:
@@ -75,21 +76,83 @@ def music_get():
         
     return jsonify(result)
 
-@app.route('/music/<int:id>', methods=['POST'])
-def music_id_post(id):
+@app.route('/redirect', methods=['POST'])
+def redirect_post():
+
+    # gets the music id from the request
+    musicID = int (request.form.get('id'))
     
-    # gets the music bytes
+    bass = (request.form.get('bass'))
+    drums = (request.form.get('drums'))
+    vocals = (request.form.get('vocals'))
+    other = (request.form.get('other'))
+
+    # print('bass: ', bass)
+    # print('drums: ', drums)
+    # print('vocals: ', vocals)
+    # print('other: ', other)
+    
+    if bass == None and drums == None and vocals == None and other == None:
+        return 'No track was selected. Please select at least one track to separate'
+    
+    tracks = []
+    if bass != None:
+        tracks.append('bass')
+    if drums != None:
+        tracks.append('drums')
+    if vocals != None:
+        tracks.append('vocals')
+    if other != None:
+        tracks.append('other')
+
+    # stores the tracks to be separated with the music id
+    idTracks[musicID] = tracks
+
+    # redirects to the music_id_post method with the music id inserted
+    return redirect(url_for('music_id_post', id=musicID), code=307) # 307 is the code for redirecting to POST method instead of GET
+
+@app.route('/music/<id>', methods=['POST'])
+def music_id_post(id):
+    # id is received as a string, so it is converted to int
+    id = int(id)
+    # if id does not exist, meaning that the music was not submitted
+    if id not in id_usados:
+        return 'No such ID was found. Try submitting the music again and using the generated ID'
+
+    # the music is going to be processed by the worker here
     musicBytes = idBytes[id]
 
-    
+    # process the music with the selected tracks
+    callback = processMusic.apply_async(args=(encodeMusic(musicBytes), id))
 
+    callbacks[id] = callback
+    # print('callback: ', callback)
+
+    # result of the celery task
+    # result = callback.get()
+
+    #print('id: ', id)
+    return 'The music is being processed. To check the status of the process and later download the file, go to: localhost:5000/music/' + str(id)
+
+@app.route('/music/<id>', methods=['GET'])
+def music_id_get(id):
+    ## get the state of the task, if it is at 100% it is done -> generate the file
+    callback = callbacks[int(id)]
+
+    print(callback.state) # if not done, it will return PENDING
+    print(callback.info) # if done, it will return the result of the task
+    
+    #if (callback.state == 'PENDING'):
+              
+
+    return 'ok'
 
 # creates the music object
 def createMusicObj(name, band):
     tracks = [ 
             { 
-            "name": "drums",
-            "track_id": 1 
+                "name": "drums",
+                "track_id": 1 
             },
             {
                 "name": "bass",
@@ -140,6 +203,9 @@ def generateID():
     id_usados.append(id)
     return id
     
+def encodeMusic(musicBytes):
+    encoded = base64.b64encode(musicBytes).decode('utf-8')
+    return encoded
 
 # # function to split the audio file into segments
 # def getAudioSegments(audioFile, segmentLength):
