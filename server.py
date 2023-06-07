@@ -363,65 +363,6 @@ def splitMusic(musicBytes, chunkDuration):
     return chunks
     
 
-# # function to convert AudioSegment to path
-# def convertToMp3(audioSegment):
-#     path = 'temp.mp3'
-#     audioSegment.export(path, format='mp3')
-#     return path
-
-
-# def __main__():
-#     global counter  
-#     parser = argparse.ArgumentParser(description='Split an audio track', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-#     parser.add_argument('-i', type=str, help='input mp3', default='music.mp3')
-#     parser.add_argument('-o', type=str, help='output folder', default='tracks')
-#     args = parser.parse_args()
-
-#     segmentLenght =  1000 * 30 # 30 seconds
-
-#     # get the audio segments
-#     audioSegments = getAudioSegments(args.i, segmentLenght)
-
-#     # loop through the audio segments
-#     for i in range(len(audioSegments)):
-#         print("Processing segment " + str(i))
-#         processMusic.delay(encodeSong(convertToMp3(audioSegments[i])), counter)
-#         counter += 1
-
-
-# @app.route('/store', methods=['POST'])
-# def store():
-#     data = request.get_json()
-#     audio_id = data["id"]
-#     audio_name = data["name"]
-
-
-#     stem = f'tracks/{data["name"]}{data["id"]}.wav'
-#     array = np.array(json.loads(data['data']))
-#     # print(torch.from_numpy(array).to(torch.float32))
-    
-#     ##
-#     audio_bytes = array.tobytes()
-
-#     with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-#         temp_file.write(audio_bytes)
-#         temp_files[audio_id] = temp_file.name
-#     ##
-#     save_audio(torch.from_numpy(array).to(torch.float32), str(stem), data['samplerate'])
-
-#     return send_file('test.mp3')
-
-
-# @app.route('/store/<string:audio_name>', methods=['GET'])
-# def download_audio(audio_id):
-#     if audio_id in temp_files:
-#         temp_file_path = temp_files[audio_id]
-#         return send_file(temp_file_path, as_attachment=True, attachment_filename=f'audio_{audio_id}.wav')
-#     else:
-#         return "Audio not found."
-
-
 if __name__ == '__main__':
-    # __main__()
     app.run()
 
