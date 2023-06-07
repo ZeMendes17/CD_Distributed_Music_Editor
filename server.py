@@ -6,7 +6,10 @@ import random
 from io import BytesIO
 from mutagen.id3 import ID3
 from pydub import AudioSegment
+
+# to remove the files and directories of the static directory
 import os
+import shutil
 
 # import json
 # import numpy as np
@@ -25,6 +28,26 @@ idTracks = {}
 callbacks = {}
 
 
+# remove all the directories and files inside the static folder
+# this is done so that the files are not stored in the server
+# after the server is closed
+# as no database is used, this is the best way to do it
+# eleminates the directory and all the files inside it
+
+for root, dirs, files in os.walk('static', topdown=False):
+    for file in files:
+        # Remove files
+        print('Removing file: ', file)
+        filePath = os.path.join(root, file)
+        os.remove(filePath)
+    for dir in dirs:
+        # Remove directories
+        print('Removing directory: ', dir)
+        dirPath = os.path.join(root, dir)
+        shutil.rmtree(dirPath)
+
+
+# define the classes
 class Music:
     def __init__(self, id, name, band, tracks):
         self.music_id = id
@@ -113,6 +136,8 @@ def redirect_post():
 
 @app.route('/music/<id>', methods=['POST'])
 def music_id_post(id):
+    taskCounter = 0
+
     # id is received as a string, so it is converted to int
     id = int(id)
     # if id does not exist, meaning that the music was not submitted
@@ -123,17 +148,19 @@ def music_id_post(id):
     musicBytes = idBytes[id]
 
     # splits the music into chunks of 5 minutes
-    chunks = splitMusic(musicBytes, 60 * 5)
+    chunks = splitMusic(musicBytes, 10)
 
     # iterate through the chunks
     for chunk in chunks:
         # process the music with the selected tracks
-        callback = processMusic.apply_async(args=(encodeMusic(musicBytes), id))
+        callback = processMusic.apply_async(args=(encodeMusic(chunk), taskCounter))
 
         if id in callbacks.keys():
             callbacks[id].append(callback)
         else:
             callbacks[id] = [callback]
+
+        taskCounter += 1
 
     return 'The music is being processed. To check the status of the process and later download the file, go to: localhost:5000/music/' + str(id)
 
@@ -166,22 +193,95 @@ def music_id_get(id):
 
     # get the instruments selected by the user
     instruments = idTracks[int(id)]
-    print(instruments)
 
     # create the music directory to store the .wav files
     if not os.path.exists('static/' + str(id)):
         os.makedirs('static/' + str(id))
 
-    # writes each of the wanted sound .wav files in the static folder to be downloaded
-    for cb in cbs: 
-        for instrument in instruments:
-            if instrument in cb.info.keys():
-                with(open('static/' + str(id) + '/' + instrument + '.wav', 'wb')) as f:
-                    f.write(base64.b64decode(cb.info[instrument]))
+
+    # join the files from each task into one file
+    # for example, bass0.wav, bass1.wav, bass2.wav --> bass.wav
+    bass = []
+    drums = []
+    vocals = []
+    other = []
+
+    allInstruments = {}
+
+    for cb in cbs:
+        for key in cb.info.keys():
+            if 'bass' in key:
+                bass.append(key)
+            elif 'drums' in key:
+                drums.append(key)
+            elif 'vocals' in key:
+                vocals.append(key)
+            elif 'other' in key:
+                other.append(key)
+
+            # store all the instruments in a list to access them easily
+            allInstruments[key] = base64.b64decode(cb.info[key])
+            
+
+    # now with them in the lists, we can join them in order 0, ... ,n
+    bass = sorted(bass, key=lambda x: int(x[4:]))
+    drums = sorted(drums, key=lambda x: int(x[5:]))
+    vocals = sorted(vocals, key=lambda x: int(x[6:]))
+    other = sorted(other, key=lambda x: int(x[5:]))
 
 
+    # finnaly, we can join them using AudioSegment
 
-    return 'ok'
+
+    # bass
+    final = AudioSegment.from_file(BytesIO(allInstruments[bass[0]]), format="wav")
+    for i in range(1, len(bass)):
+        final += AudioSegment.from_file(BytesIO(allInstruments[bass[i]]), format="wav")
+    final.export('static/' + str(id) + '/bass.wav', format='wav')
+    
+    # drums
+    final = AudioSegment.from_file(BytesIO(allInstruments[drums[0]]), format="wav")
+    for i in range(1, len(drums)):
+        final += AudioSegment.from_file(BytesIO(allInstruments[drums[i]]), format="wav")
+    final.export('static/' + str(id) + '/drums.wav', format='wav')
+
+    # vocals
+    final = AudioSegment.from_file(BytesIO(allInstruments[vocals[0]]), format="wav")
+    for i in range(1, len(vocals)):
+        final += AudioSegment.from_file(BytesIO(allInstruments[vocals[i]]), format="wav")
+    final.export('static/' + str(id) + '/vocals.wav', format='wav')
+
+    # other
+    final = AudioSegment.from_file(BytesIO(allInstruments[other[0]]), format="wav")
+    for i in range(1, len(other)):
+        final += AudioSegment.from_file(BytesIO(allInstruments[other[i]]), format="wav")
+    final.export('static/' + str(id) + '/other.wav', format='wav')
+
+
+    # overlay the files in files to create the final .wav file
+    # using the pydub library with the AudioSegment class
+    files = []
+
+    for instrument in instruments:
+        files.append('static/' + str(id) + '/' + instrument + '.wav')
+
+    returnFile = AudioSegment.from_file(files[0])
+
+    for i in range(1, len(files)):
+        returnFile = returnFile.overlay(AudioSegment.from_file(files[i]))
+    returnFile.export('static/' + str(id) + '/returnFile.wav', format='wav')
+
+    # the return will render the html page with links to the files
+    links = [
+        {'name': 'Bass', 'url': 'localhost:5000/static/' + str(id) + '/bass.wav'},
+        {'name': 'Drums', 'url': 'localhost:5000/static/' + str(id) + '/drums.wav'},
+        {'name': 'Vocals', 'url': 'localhost:5000/static/' + str(id) + '/vocals.wav'},
+        {'name': 'Other', 'url': 'localhost:5000/static/' + str(id) + '/other.wav'},
+        {'name': 'Generated File', 'url': 'localhost:5000/static/' + str(id) + '/returnFile.wav'}
+    ]
+
+    return render_template('generatedLinks.html', links=links)
+    
 
 # creates the music object
 def createMusicObj(name, band):
@@ -261,6 +361,7 @@ def splitMusic(musicBytes, chunkDuration):
         chunks.append(chunk.export(format='mp3').read())
 
     return chunks
+    
 
 # # function to convert AudioSegment to path
 # def convertToMp3(audioSegment):

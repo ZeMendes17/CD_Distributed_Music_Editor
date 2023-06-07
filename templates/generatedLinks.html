@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Links</title>
+</head>
+<body>
+    <h1>Download your music here!</h1>
+    <ul>
+        {% for link in links %}
+            <li>{{ link.name }}: <a href="{{ link.url }}">{{ link.url }}</a></li>
+        {% endfor %}
+    </ul>
+</body>
+</html>

@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 @app.task
-def processMusic(input, id):
+def processMusic(input, counter):
     # get the model
     model = get_model(name='htdemucs')
     model.cpu()
@@ -56,7 +56,7 @@ def processMusic(input, id):
             tempPath = tf.name
 
             save_audio(source, str(tempPath), samplerate=model.samplerate)
-            parts[name] = encodeMusic(tf.read())
+            parts[name + str(counter)] = encodeMusic(tf.read())
     # will send the 4 parts of the music to the server
     return parts
 
