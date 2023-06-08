@@ -13,7 +13,7 @@ from demucs.pretrained import get_model
 from demucs.audio import AudioFile, save_audio 
 
 from celery import Celery
-import json
+import time
 import tempfile
 
 
@@ -26,6 +26,9 @@ logger = logging.getLogger(__name__)
 
 @app.task
 def processMusic(input, counter):
+    # start timer
+    start = time.time()
+
     # get the model
     model = get_model(name='htdemucs')
     model.cpu()
@@ -57,8 +60,13 @@ def processMusic(input, counter):
 
             save_audio(source, str(tempPath), samplerate=model.samplerate)
             parts[name + str(counter)] = encodeMusic(tf.read())
+        
     # will send the 4 parts of the music to the server
-    return parts
+
+    # end timer
+    end = time.time()
+
+    return (parts, end - start)
 
 # function to encode the music bytes to base64
 def encodeMusic(musicBytes):

@@ -4,11 +4,16 @@
     <title>Links</title>
 </head>
 <body>
-    <h1>Download your music here!</h1>
+    <h1>Download your music here!</h1><br>
+
+    <h2>Instrument Links:</h2>
     <ul>
-        {% for link in links %}
-            <li>{{ link.name }}: <a href="{{ link.url }}">{{ link.url }}</a></li>
+        {% for link in instrumentLinks %}
+            <li>{{ link.name }}: <a href="{{ link.track }}">{{ link.track }}</a></li>
         {% endfor %}
     </ul>
+    
+    <h2>Final link:</h2>
+    <h3><a href="{{ finalLink }}">{{ finalLink }}</a></h3>
 </body>
 </html>

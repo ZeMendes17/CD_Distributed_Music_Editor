@@ -3,9 +3,14 @@ import base64
 from flask import Flask, request, send_file, render_template, jsonify, redirect, url_for
 
 import random
+import threading
 from io import BytesIO
 from mutagen.id3 import ID3
 from pydub import AudioSegment
+from celery import Celery
+from celery.result import AsyncResult
+from sys import getsizeof
+import time
 
 # to remove the files and directories of the static directory
 import os
@@ -19,13 +24,16 @@ import shutil
 
 
 app = Flask(__name__)
-counter = 0
-temp_files = {}
+celery = Celery()
 id_usados = []
 musicas = []
 idBytes = {}
 idTracks = {}
 callbacks = {}
+jobCallback = {} # dict to store --> key: id, value: job
+jobs = []
+percentage = 0
+tracks = []
 
 
 # remove all the directories and files inside the static folder
@@ -57,6 +65,43 @@ class Music:
 
     def __repr__(self):
         return f"Music({self.music_id}, {self.name}, {self.band}, {self.tracks})"
+    
+class Track:
+    def __init__(self, id, name):
+        self.track_id = id
+        self.name = name
+
+    def __repr__(self):
+        return f"Track({self.name},{self.track_id})"
+    
+class Instrument:
+    def __init__(self, name, track):
+        self.name = name
+        self.track = track
+        
+    def __repr__(self):
+        return f"Instrument({self.name}, {self.track})"
+
+class Progress:
+    def __init__(self, progress, instruments, final):
+        self.progress = progress
+        self.instruments = instruments
+        self.final = final
+
+    def __repr__(self):
+        return f"Progress({self.progress}, {self.instruments}, {self.final})"
+        
+class Job:
+    def __init__(self, id, size, time, music_id, track_id):
+        self.job_id = id
+        self.size = size
+        self.time = time
+        self.music_id = music_id
+        self.track_id = track_id
+
+    def __repr__(self):
+        return f"Job({self.job_id}, {self.size}, {self.time}, {self.music_id}, {self.track_id})"
+    
 
 @app.route('/')
 def index():
@@ -69,6 +114,9 @@ def music_post():
     # gets the file to bytes
     fileBytes = file.read()
 
+    # create a mutex to lock the counter
+    mutex = threading.Lock()
+
     # gets the music info, name and band
     try:
         music = ID3(fileobj=BytesIO(fileBytes))
@@ -79,11 +127,19 @@ def music_post():
         name = 'Unknown'
         band = 'Unknown'   
 
-    # creates the music object instance
-    musicObj = createMusicObj(name, band)
+    # lock the mutex
+    mutex.acquire()
 
-    # store the id and the bytes of the music
-    idBytes[musicObj.music_id] = fileBytes
+    try:
+        # creates the music object instance
+        musicObj = createMusicObj(name, band)
+
+        # store the id and the bytes of the music
+        idBytes[musicObj.music_id] = fileBytes
+
+    finally:
+        # release the mutex
+        mutex.release()
     
     # returns the music info
     return jsonify(toDict(musicObj))
@@ -137,6 +193,7 @@ def redirect_post():
 @app.route('/music/<id>', methods=['POST'])
 def music_id_post(id):
     taskCounter = 0
+    mutex = threading.Lock()
 
     # id is received as a string, so it is converted to int
     id = int(id)
@@ -147,20 +204,51 @@ def music_id_post(id):
     # the music is going to be processed by the worker here
     musicBytes = idBytes[id]
 
-    # splits the music into chunks of 5 minutes
-    chunks = splitMusic(musicBytes, 10)
+    # total duration of the song
+    audio = AudioSegment.from_file(BytesIO(musicBytes), format='mp3')
+    totalDuration = len(audio) / 1000 # in seconds
 
-    # iterate through the chunks
-    for chunk in chunks:
-        # process the music with the selected tracks
-        callback = processMusic.apply_async(args=(encodeMusic(chunk), taskCounter))
+    # dinamically get the best chunk duration to split the music
+    duration = chunkDuration(totalDuration)    
 
-        if id in callbacks.keys():
-            callbacks[id].append(callback)
-        else:
-            callbacks[id] = [callback]
+    # splits the music into chunks based on the chunk duration
+    chunks = splitMusic(musicBytes, duration)
 
-        taskCounter += 1
+    # create a mutex to lock the counter
+    mutex.acquire()
+
+    try:
+
+        # iterate through the chunks
+        for chunk in chunks:
+            # process the music with the selected tracks
+            callback = processMusic.apply_async(args=(encodeMusic(chunk), taskCounter))
+            # store the job in the jobs dict
+            jobID = generateID()
+            jobCallback[callback] = jobID
+
+            jobSize = getsizeof(chunk)
+            jobTime = time.time()
+            musicID = id
+            track_id = []
+
+            # create a job object
+            job = Job(jobID, jobSize, jobTime, musicID, track_id)
+
+            # store the job in the jobs list
+            jobs.append(job)
+
+
+            if id in callbacks.keys():
+                callbacks[id].append(callback)
+            else:
+                callbacks[id] = [callback]
+
+            taskCounter += 1
+        
+    finally:
+        # release the mutex
+        mutex.release()
 
     return 'The music is being processed. To check the status of the process and later download the file, go to: localhost:5000/music/' + str(id)
 
@@ -177,19 +265,33 @@ def music_id_get(id):
         print(cb.state) # shows the state of each task sent SUCCESS, PENDING, FAILURE
         total += 1
         if(cb.state == 'SUCCESS'):
+            jobID = jobCallback[cb]
+            timestamp = cb.info[1]
+
+            for job in jobs:
+                if job.job_id == jobID:
+                    job.time = timestamp
+                    tracksTemp = []
+                    for key in cb.info[0].keys():
+                        trackID = generateID()
+                        tracks.append(Track(trackID, key))
+                        tracksTemp.append(trackID)
+                    job.track_id = tracksTemp
             successes += 1
               
     # print(str(successes) + " -----> " + str(total))
     percentage = int(successes / total * 100)
 
+    progress = Progress(percentage, None, None)
+
     # if the music is still being processed
     if percentage != 100:
-        return str(percentage)
+        return str(progress.progress)
 
     # if it is at 100% but info is not yet available (should not happen)
     for cb in cbs:
         if(cb.info == None):
-            return str(percentage) 
+            return str(progress.progress) 
 
     # get the instruments selected by the user
     instruments = idTracks[int(id)]
@@ -209,7 +311,7 @@ def music_id_get(id):
     allInstruments = {}
 
     for cb in cbs:
-        for key in cb.info.keys():
+        for key in cb.info[0].keys():
             if 'bass' in key:
                 bass.append(key)
             elif 'drums' in key:
@@ -220,7 +322,7 @@ def music_id_get(id):
                 other.append(key)
 
             # store all the instruments in a list to access them easily
-            allInstruments[key] = base64.b64decode(cb.info[key])
+            allInstruments[key] = base64.b64decode(cb.info[0][key])
             
 
     # now with them in the lists, we can join them in order 0, ... ,n
@@ -269,48 +371,127 @@ def music_id_get(id):
 
     for i in range(1, len(files)):
         returnFile = returnFile.overlay(AudioSegment.from_file(files[i]))
-    returnFile.export('static/' + str(id) + '/returnFile.wav', format='wav')
+    returnFile.export('static/' + str(id) + '/final.wav', format='wav')
 
     # the return will render the html page with links to the files
-    links = [
-        {'name': 'Bass', 'url': 'localhost:5000/static/' + str(id) + '/bass.wav'},
-        {'name': 'Drums', 'url': 'localhost:5000/static/' + str(id) + '/drums.wav'},
-        {'name': 'Vocals', 'url': 'localhost:5000/static/' + str(id) + '/vocals.wav'},
-        {'name': 'Other', 'url': 'localhost:5000/static/' + str(id) + '/other.wav'},
-        {'name': 'Generated File', 'url': 'localhost:5000/static/' + str(id) + '/returnFile.wav'}
-    ]
+    instruments = []
 
-    return render_template('generatedLinks.html', links=links)
+    for instrument in ['bass', 'drums', 'vocals', 'other']:
+        instruments.append(Instrument(instrument, 'localhost:5000/static/' + str(id) + '/' + instrument + '.wav'))
+
+    final = 'localhost:5000/static/' + str(id) + '/final.wav'
+
+    progress.final = final
+    progress.instruments = instruments
+
+    return render_template('generatedLinks.html', instrumentLinks=progress.instruments, finalLink=progress.final)
+
+
+@app.route('/job', methods=['GET'])
+def job_get():
+    returnJobs = []
+
+    for job in jobs:
+        returnJobs.append(job.job_id)
+
+    return jsonify(returnJobs)
+
+
+@app.route('/job/<id>', methods=['GET'])
+def job_get_id(id):
+    # returns id, size, time, music_id, track_id
+    for job in jobs:
+        if int(id) == job.job_id:
+            return jsonify(toDictJob(job))                                                                                                 
     
+    return "Job Not Found! Please make sure you selected the right ID Job"
+
+
+@app.route('/reset', methods=['POST'])
+def reset():
+
+    global id_usados
+    global musicas
+    global idBytes
+    global jobs
+    global jobs
+    global idTracks
+    global percentage
+    global callbacks
+
+    # reset the workers
+    command = 'celery -A worker purge -f'
+    os.system(command)
+
+    for cbs in callbacks.values():
+        for cb in cbs:
+            print('Revoking task: ', cb.id)
+            celery.control.revoke(cb.id, terminate=True)
+
+    # clear all the global variables
+    id_usados = []
+    musicas = []
+    idBytes = {}
+    jobs = {}
+    jobs = []
+    idTracks = {}
+    callbacks = {}
+    percentage = 0
+
+    # delete all the files in the static folder
+    for root, dirs, files in os.walk('static', topdown=False):
+        for file in files:
+            # Remove files
+            print('Removing file: ', file)
+            filePath = os.path.join(root, file)
+            os.remove(filePath)
+        for dir in dirs:
+            # Remove directories
+            print('Removing directory: ', dir)
+            dirPath = os.path.join(root, dir)
+            shutil.rmtree(dirPath)
+
+    return 'Server has been reseted successfully!'
+
 
 # creates the music object
 def createMusicObj(name, band):
-    tracks = [ 
+    tracksData = [ 
             { 
                 "name": "drums",
-                "track_id": 1 
+                "track_id": generateID()
             },
             {
                 "name": "bass",
-                "track_id": 2
+                "track_id": generateID()
             },
             {
                 "name": "vocals",
-                "track_id": 3
+                "track_id": generateID()
             },
             {
                 "name": "other",
-                "track_id": 4
+                "track_id": generateID()
             }
-             ]
+            ]
     
+
+    # create a list of Track objects
+    tracksTemp = [Track(tracksData["track_id"], tracksData["name"]) for tracksData in tracksData]
+
+    # store the tracks in a dict
+    for track in tracksTemp:
+        tracks.append(track)
+
     # if the music already exists in the server, there is no need to create a new Obj   
     # fro now if it is known --> new music
     for musica in musicas:
         if musica.name == name and musica.name != 'Unknown' and musica.band == band and musica.band != 'Unknown':
             return musica
-        
+    
+
     id = generateID()
+
 
     music = Music(id, name, band, tracks)
 
@@ -322,11 +503,30 @@ def createMusicObj(name, band):
 
 # function to convert the music object to a dict
 def toDict(music: Music):
+
+    tracks = []
+
+    for track in music.tracks:
+        tracks.append({
+            "name": track.name,
+            "track_id": track.track_id
+        })
+
     return {
         "music_id": music.music_id,
         "name": music.name,
         "band": music.band,
-        "tracks": music.tracks
+        "tracks": tracks
+    }
+
+# function to convert the job object to a dict
+def toDictJob(job : Job):
+    return {
+        "job_id": job.job_id,
+        "size": job.size,
+        "time": job.time,
+        "music_id": job.music_id,
+        "track_id" : job.track_id
     }
 
 
@@ -344,6 +544,28 @@ def encodeMusic(musicBytes):
     encoded = base64.b64encode(musicBytes).decode('utf-8')
     return encoded
 
+def chunkDuration(total_duration):
+    # dependde dos numero de workers
+    # Set an initial target duration
+    if total_duration <= 10:
+        target_duration = total_duration
+    
+    elif total_duration <= 60:
+        target_duration = 10
+
+    elif total_duration <= 60 * 5:
+        target_duration = 30
+
+    elif total_duration <= 60 * 10:
+        target_duration = 60
+
+    else :
+        target_duration = 120
+
+    return target_duration
+
+
+
 # function to split the audio file into segments
 def splitMusic(musicBytes, chunkDuration):
     # Create an audio segment from the input music bytes
@@ -353,7 +575,7 @@ def splitMusic(musicBytes, chunkDuration):
     length = int(chunkDuration * 1000)
 
     chunks = []
-    totalDuration = len(audio)
+    totalDuration = len(audio) 
 
     for start in range(0, totalDuration, length):
         end = min(start + length, totalDuration)
@@ -365,4 +587,3 @@ def splitMusic(musicBytes, chunkDuration):
 
 if __name__ == '__main__':
     app.run()
-
