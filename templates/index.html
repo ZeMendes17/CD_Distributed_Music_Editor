@@ -218,10 +218,12 @@
     <div class="method-summary">Listar todas as músicas submetidas (<span class="nickname">listAll</span>)</div>
     <div class="method-notes">Listar todas as músicas submetidas</div>
 
+    <form action="/music" method="GET" enctype="multipart/form-data" style="margin-top: 3em; margin-bottom: 3em;">
+      <button>Execute</button>
+    </form>
 
-      <form action="/music" method="GET" enctype="multipart/form-data" style="margin-top: 3em; margin-bottom: 3em;">
-        <button>Execute</button>
-      </form>
+
+
 
 
     <h3 class="field-label">Return type</h3>
@@ -276,34 +278,33 @@
     <a class="up" href="#__Methods">Up</a>
     <pre class="post"><code class="huge"><span class="http-method">post</span> /music/{music_id}</code></pre></div>
     <div class="method-summary">Processar uma musica (<span class="nickname">process</span>)</div>
-    <div class="method-notes">Requisitar o processamento da música &lt;music_id&gt; com apenas os instrumentos listados através do seu identificador num ficheiro JSON submetido.</div>
+    <div class="method-notes">Requisitar o processamento asincrono (este método deve retornar imediatamente) da música &lt;music_id&gt; com apenas os instrumentos listados através do seu identificador num ficheiro JSON submetido. O sistema deve fazer a separação da música nos seus vários instrumentos, dando origem a um ficheiro por instrumento. No final, o sistema deverá misturar os instrumentos seleccionados num unico ficheiro.</div>
 
-      <form method="POST" id="form" action="redirect">
-        <input type="number" placeholder="Insert a music ID" name="id" value="" id="idInserted">
-        <br>
-        <label>
-          <input type="checkbox" name="vocals" value="Vocals">
-          Vocals
-        </label>
-        <br>
-        <label>
-          <input type="checkbox" name="drums" value="Drums">
-          Drums
-        </label>
-        <br>
-        <label>
-          <input type="checkbox" name="bass" value="Bass">
-          Bass
-        </label>
-        <br>
-        <label>
-          <input type="checkbox" name="other" value="Others">
-          Others
-        </label>
-        <br>
-        <button>Execute</button>
-      </form>
-
+    <form method="POST" id="form" action="redirect">
+      <input type="number" placeholder="Insert a music ID" name="id" value="" id="idInserted">
+      <br>
+      <label>
+        <input type="checkbox" name="vocals" value="Vocals">
+        Vocals
+      </label>
+      <br>
+      <label>
+        <input type="checkbox" name="drums" value="Drums">
+        Drums
+      </label>
+      <br>
+      <label>
+        <input type="checkbox" name="bass" value="Bass">
+        Bass
+      </label>
+      <br>
+      <label>
+        <input type="checkbox" name="other" value="Others">
+        Others
+      </label>
+      <br>
+      <button>Execute</button>
+    </form>
 
     <h3 class="field-label">Path parameters</h3>
     <div class="field-items">
@@ -339,6 +340,9 @@
     <h4 class="field-label">404</h4>
     Music not found
         <a href="#"></a>
+    <h4 class="field-label">405</h4>
+    Track not found
+        <a href="#"></a>
   </div> <!-- method -->
   <hr/>
   <div class="method"><a name="progress"></a>
@@ -346,15 +350,12 @@
     <a class="up" href="#__Methods">Up</a>
     <pre class="get"><code class="huge"><span class="http-method">get</span> /music/{music_id}</code></pre></div>
     <div class="method-summary">Estado de processamento de uma musica (<span class="nickname">progress</span>)</div>
-    <div class="method-notes">Requisitar o estado de processamento de uma música, quando o estado é 100% a resposta deve incluir o url do ficheiro final.</div>
+    <div class="method-notes">Requisitar o estado de processamento de uma música, quando o estado é 100% a resposta deve incluir o url do ficheiro final. Quando a pista de um instrumento estiver completo deverá retornar o link para o ficheiro de cada instrumento (permitindo ao utilizador fazer o download e reprodução do ficheiro). No final haverá também um link para o ficheiro final misturado (contendo os instrumentos seleccionados).</div>
 
     <form method="GET" action="redirect">
       <input type="number" placeholder="Insert a music ID" name="id2" value="">
       <button>Execute</button>
     </form>
-
-
-
 
     <h3 class="field-label">Path parameters</h3>
     <div class="field-items">
@@ -369,7 +370,7 @@
 
     <h3 class="field-label">Return type</h3>
     <div class="return-type">
-      <a href="#inline_response_200">inline_response_200</a>
+      <a href="#Progress">Progress</a>
       
     </div>
 
@@ -377,7 +378,17 @@
 
     <h3 class="field-label">Example data</h3>
     <div class="example-data-content-type">Content-Type: application/json</div>
-    <pre class="example"><code>""</code></pre>
+    <pre class="example"><code>{
+  "instruments" : [ {
+    "name" : "guitar",
+    "track" : "http://localhost/file/12314"
+  }, {
+    "name" : "bass",
+    "track" : "http://localhost/file/34567"
+  } ],
+  "final" : "http://localhost/file/31231234",
+  "progress" : 0
+}</code></pre>
 
     <h3 class="field-label">Produces</h3>
     This API call produces the following media types according to the <span class="header">Accept</span> request header;
@@ -389,7 +400,7 @@
     <h3 class="field-label">Responses</h3>
     <h4 class="field-label">200</h4>
     successful operation
-        <a href="#inline_response_200">inline_response_200</a>
+        <a href="#Progress">Progress</a>
     <h4 class="field-label">404</h4>
     Music not found
         <a href="#"></a>
@@ -407,9 +418,9 @@
       <input type="file" id="myfile" name="myfile"> 
       <button> Execute </button>
     </form>
-
-    <div class="method-notes">Submeter ficheiros de áudio em formato MP3. De seguida o sistema deverá partir o ficheiro áudio em trechos de duração mais curta que podem ser analisados paralelamente. Em resposta à submissão do ficheiro de áudio, o serviço deverá retornar um ficheiro JSON contendo um identificador do trabalho (music_id), e uma lista de identificadores das pistas de instrumentos (cada identificador deverá corresponder a um instrumento) assim como um link para o ficheiro de cada instrumento (permitindo ao utilizador fazer o download e reprodução do ficheiro).</div>
     
+    <div class="method-notes">Submeter ficheiros de áudio em formato MP3. Em resposta à submissão do ficheiro de áudio, o serviço deverá retornar um ficheiro JSON contendo um identificador do trabalho (music_id), e uma lista de identificadores das pistas de instrumentos (cada identificador deverá corresponder a um instrumento). Este método apenas armaneza e analisa os metadados da música.</div>
+
 
     <h3 class="field-label">Consumes</h3>
     This API call consumes the following media types via the <span class="header">Content-Type</span> request header:
@@ -472,15 +483,13 @@
     <a class="up" href="#__Methods">Up</a>
     <pre class="get"><code class="huge"><span class="http-method">get</span> /job/{job_id}</code></pre></div>
     <div class="method-summary">Informação sobre um Job (<span class="nickname">jobStats</span>)</div>
-    <div class="method-notes">estatísticas de um dado Job (tamanho do ficheiro, link para os vários ficheiros, tempos de processamento, número de worker requests, etc.)</div>
-    
+    <div class="method-notes">estatísticas de um dado Job (tamanho do ficheiro, link para os vários ficheiros, tempos de processamento, music_id, etc.)</div>
 
     <form action="/redirectJob" method="GET">
       <input type="number" placeholder="Insert a Job ID" name="id3" value="">
       <button>Execute</button>
     </form>
 
-      
     <h3 class="field-label">Path parameters</h3>
     <div class="field-items">
       <div class="param">job_id (required)</div>
@@ -489,7 +498,7 @@
 
 
 
-    
+
 
 
     <h3 class="field-label">Return type</h3>
@@ -522,7 +531,7 @@
     successful operation
         <a href="#Job">Job</a>
     <h4 class="field-label">404</h4>
-    Music not found
+    Job not found
         <a href="#"></a>
   </div> <!-- method -->
   <hr/>
@@ -533,10 +542,10 @@
     <div class="method-summary">Listar todos Jobs (<span class="nickname">jobs</span>)</div>
     <div class="method-notes">Listar todos Jobs (Job é uma tarefa distribuída a um worker) submetidos</div>
 
-
     <form action="/job" method="GET">
       <button> Execute </button>
     </form>
+
 
 
 
@@ -575,11 +584,10 @@
     <pre class="post"><code class="huge"><span class="http-method">post</span> /reset</code></pre></div>
     <div class="method-summary">Reiniciar o sistema (<span class="nickname">reset</span>)</div>
     <div class="method-notes">Apagar todos ficheiros temporários e músicas (sistema limpo), cancelar todos os workers ainda em funcionamento.</div>
-    
+
     <form method="POST" action="/reset">
-        <button> Reset </button>
-    </form>
-    
+      <button> Reset </button>
+    </form>  
 
 
 
@@ -602,12 +610,23 @@
 
   <h3>Table of Contents</h3>
   <ol>
+    <li><a href="#Instrument"><code>Instrument</code></a></li>
     <li><a href="#Job"><code>Job</code></a></li>
     <li><a href="#Musica"><code>Musica</code></a></li>
+    <li><a href="#Progress"><code>Progress</code></a></li>
     <li><a href="#Track"><code>Track</code></a></li>
-    <li><a href="#inline_response_200"><code>inline_response_200</code></a></li>
   </ol>
 
+  <div class="model">
+    <h3><a name="Instrument"><code>Instrument</code></a> <a class="up" href="#__Models">Up</a></h3>
+    
+    <div class="field-items">
+      <div class="param">name (optional)</div><div class="param-desc"><span class="param-type"><a href="#string">String</a></span>  </div>
+          <div class="param-desc"><span class="param-type">example: guitar</span></div>
+<div class="param">track (optional)</div><div class="param-desc"><span class="param-type"><a href="#string">String</a></span>  format: uri</div>
+          <div class="param-desc"><span class="param-type">example: http://localhost/file/12314</span></div>
+    </div>  <!-- field-items -->
+  </div>
   <div class="model">
     <h3><a name="Job"><code>Job</code></a> <a class="up" href="#__Models">Up</a></h3>
     
@@ -638,6 +657,17 @@
     </div>  <!-- field-items -->
   </div>
   <div class="model">
+    <h3><a name="Progress"><code>Progress</code></a> <a class="up" href="#__Models">Up</a></h3>
+    
+    <div class="field-items">
+      <div class="param">progress (optional)</div><div class="param-desc"><span class="param-type"><a href="#integer">Integer</a></span>  </div>
+<div class="param">instruments (optional)</div><div class="param-desc"><span class="param-type"><a href="#Instrument">array[Instrument]</a></span>  </div>
+          <div class="param-desc"><span class="param-type">example: [{&quot;name&quot;:&quot;guitar&quot;,&quot;track&quot;:&quot;http://localhost/file/12314&quot;},{&quot;name&quot;:&quot;bass&quot;,&quot;track&quot;:&quot;http://localhost/file/34567&quot;}]</span></div>
+<div class="param">final (optional)</div><div class="param-desc"><span class="param-type"><a href="#string">String</a></span>  format: uri</div>
+          <div class="param-desc"><span class="param-type">example: http://localhost/file/31231234</span></div>
+    </div>  <!-- field-items -->
+  </div>
+  <div class="model">
     <h3><a name="Track"><code>Track</code></a> <a class="up" href="#__Models">Up</a></h3>
     
     <div class="field-items">
@@ -647,25 +677,5 @@
           <div class="param-desc"><span class="param-type">example: 1</span></div>
     </div>  <!-- field-items -->
   </div>
-  <div class="model">
-    <h3><a name="inline_response_200"><code>inline_response_200</code></a> <a class="up" href="#__Models">Up</a></h3>
-    
-    <div class="field-items">
-          </div>  <!-- field-items -->
-  </div>
-
-  <script>
-    function getID() {
-      var inputValue = document.getElementById("idInserted").value;
-      var form = document.getElementById("form");
-
-      if(inputValue == "") {
-        alert("Please insert an ID");
-      } else {
-        form.action = "localhost:5000/music/" + inputValue;
-        from.submit();
-      }
-    }
-  </script>
   </body>
 </html>
