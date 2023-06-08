@@ -281,8 +281,10 @@ def music_id_get(id):
                     tracksTemp = []
                     for key in cb.info[0].keys():
                         trackID = generateID()
-                        tracks.append(Track(trackID, key))
+
+                        #tracks.append(Track(trackID, key))
                         tracksTemp.append(trackID)
+
                     job.track_id = tracksTemp
             successes += 1
               
@@ -500,7 +502,7 @@ def createMusicObj(name, band):
     id = generateID()
 
 
-    music = Music(id, name, band, tracks)
+    music = Music(id, name, band, tracksTemp)
 
 
     # stores the music info into a dict
