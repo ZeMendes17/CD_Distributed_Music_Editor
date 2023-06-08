@@ -1,4 +1,3 @@
-[![Review Assignment Due Date](https://classroom.github.com/assets/deadline-readme-button-24ddc0f5d75046c5622901739e7c5dd533143b0c8e959d652212380cedb1ea36.svg)](https://classroom.github.com/a/q9wGcN9U)
 # CD 2023 Project
 
 Here we have a sample code that loads one mp3 file and splits it 
@@ -35,7 +34,6 @@ It is important to install the requirements following the previous instructions.
 By default, PyTorch will install the CUDA version of the library (over 4G simple from the virtual environment).
 As such, the current instructions force the installation of the CPU version of PyTorch and then installs Demucs.
 
-
 ## Usage
 
 The sample main code only requires two parameters:
@@ -53,10 +51,11 @@ To run test the sample code simple run:
 python main.py -i test.mp3
 ```
 
-
 ## Authors
 
 * **Mário Antunes** - [mariolpantunes](https://github.com/mariolpantunes)
+* **Diogo Gomes** - [dgomes](https://github.com/dgomes)
+* **Nuno Lau** - [nunolau](https://github.com/nunolau)
 
 ## License
 
