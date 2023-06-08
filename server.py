@@ -155,40 +155,47 @@ def music_get():
         
     return jsonify(result)
 
-@app.route('/redirect', methods=['POST'])
+@app.route('/redirectJob', methods=['GET'])
+def redirect_job():
+    jobID = int (request.args.get('id3'))
+    return redirect(url_for('job_get_id', id=jobID))
+
+@app.route('/redirect', methods=['POST', 'GET'])
 def redirect_post():
 
-    # gets the music id from the request
-    musicID = int (request.form.get('id'))
-    
-    bass = (request.form.get('bass'))
-    drums = (request.form.get('drums'))
-    vocals = (request.form.get('vocals'))
-    other = (request.form.get('other'))
+    if request.method == 'POST':
+        # gets the music id from the request
+        musicID = int (request.form.get('id'))
 
-    # print('bass: ', bass)
-    # print('drums: ', drums)
-    # print('vocals: ', vocals)
-    # print('other: ', other)
-    
-    if bass == None and drums == None and vocals == None and other == None:
-        return 'No track was selected. Please select at least one track to separate'
-    
-    tracks = []
-    if bass != None:
-        tracks.append('bass')
-    if drums != None:
-        tracks.append('drums')
-    if vocals != None:
-        tracks.append('vocals')
-    if other != None:
-        tracks.append('other')
+        bass = (request.form.get('bass'))
+        drums = (request.form.get('drums'))
+        vocals = (request.form.get('vocals'))
+        other = (request.form.get('other'))
+        
+        if bass == None and drums == None and vocals == None and other == None:
+            return 'No track was selected. Please select at least one track to separate'
+        
+        tracks = []
+        if bass != None:
+            tracks.append('bass')
+        if drums != None:
+            tracks.append('drums')
+        if vocals != None:
+            tracks.append('vocals')
+        if other != None:
+            tracks.append('other')
 
-    # stores the tracks to be separated with the music id
-    idTracks[musicID] = tracks
+        # stores the tracks to be separated with the music id
+        idTracks[musicID] = tracks
 
-    # redirects to the music_id_post method with the music id inserted
-    return redirect(url_for('music_id_post', id=musicID), code=307) # 307 is the code for redirecting to POST method instead of GET
+        # redirects to the music_id_post method with the music id inserted
+        return redirect(url_for('music_id_post', id=musicID), code=307) # 307 is the code for redirecting to POST method instead of GET
+    
+    else:
+        # gets the music id from the request
+        musicID = int (request.args.get('id2'))  
+        
+        return redirect(url_for('music_id_get', id=musicID))
 
 @app.route('/music/<id>', methods=['POST'])
 def music_id_post(id):

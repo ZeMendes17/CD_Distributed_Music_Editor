@@ -348,6 +348,14 @@
     <div class="method-summary">Estado de processamento de uma musica (<span class="nickname">progress</span>)</div>
     <div class="method-notes">Requisitar o estado de processamento de uma música, quando o estado é 100% a resposta deve incluir o url do ficheiro final.</div>
 
+    <form method="GET" action="redirect">
+      <input type="number" placeholder="Insert a music ID" name="id2" value="">
+      <button>Execute</button>
+    </form>
+
+
+
+
     <h3 class="field-label">Path parameters</h3>
     <div class="field-items">
       <div class="param">music_id (required)</div>
@@ -465,7 +473,14 @@
     <pre class="get"><code class="huge"><span class="http-method">get</span> /job/{job_id}</code></pre></div>
     <div class="method-summary">Informação sobre um Job (<span class="nickname">jobStats</span>)</div>
     <div class="method-notes">estatísticas de um dado Job (tamanho do ficheiro, link para os vários ficheiros, tempos de processamento, número de worker requests, etc.)</div>
+    
 
+    <form action="/redirectJob" method="GET">
+      <input type="number" placeholder="Insert a Job ID" name="id3" value="">
+      <button>Execute</button>
+    </form>
+
+      
     <h3 class="field-label">Path parameters</h3>
     <div class="field-items">
       <div class="param">job_id (required)</div>
@@ -474,7 +489,7 @@
 
 
 
-
+    
 
 
     <h3 class="field-label">Return type</h3>
@@ -519,7 +534,9 @@
     <div class="method-notes">Listar todos Jobs (Job é uma tarefa distribuída a um worker) submetidos</div>
 
 
-
+    <form action="/job" method="GET">
+      <button> Execute </button>
+    </form>
 
 
 
