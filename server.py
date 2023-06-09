@@ -104,40 +104,45 @@ def index():
 
 @app.route('/music', methods=['POST'])
 def music_post():
-    # gets the file from the request
-    file = request.files['myfile']
-    # gets the file to bytes
-    fileBytes = file.read()
-
-    # create a mutex to lock the counter
-    mutex = threading.Lock()
-
-    # gets the music info, name and band
     try:
-        music = ID3(fileobj=BytesIO(fileBytes))
-        name = music['TIT2'].text[0] if music['TIT2'] else 'Unknown'
-        band = music['TPE1'].text[0] if music['TPE1'] else 'Unknown'
+        # gets the file from the request
+        file = request.files['myfile']
+        # gets the file to bytes
+        fileBytes = file.read()
+
+        # create a mutex to lock the counter
+        mutex = threading.Lock()
+
+        # gets the music info, name and band
+        try:
+            music = ID3(fileobj=BytesIO(fileBytes))
+            name = music['TIT2'].text[0] if music['TIT2'] else 'Unknown'
+            band = music['TPE1'].text[0] if music['TPE1'] else 'Unknown'
+        except Exception as e:
+            print('Error: ', e)
+            name = 'Unknown'
+            band = 'Unknown'   
+
+        # lock the mutex
+        mutex.acquire()
+
+        try:
+            # creates the music object instance
+            musicObj = createMusicObj(name, band)
+
+            # store the id and the bytes of the music
+            idBytes[musicObj.music_id] = fileBytes
+
+        finally:
+            # release the mutex
+            mutex.release()
+        
+        # returns the music info
+        return jsonify(toDict(musicObj)), 200
+    
     except Exception as e:
         print('Error: ', e)
-        name = 'Unknown'
-        band = 'Unknown'   
-
-    # lock the mutex
-    mutex.acquire()
-
-    try:
-        # creates the music object instance
-        musicObj = createMusicObj(name, band)
-
-        # store the id and the bytes of the music
-        idBytes[musicObj.music_id] = fileBytes
-
-    finally:
-        # release the mutex
-        mutex.release()
-    
-    # returns the music info
-    return jsonify(toDict(musicObj))
+        return 'Invalid input', 405
 
     
 
@@ -196,11 +201,22 @@ def redirect_post():
 # @profile
 def music_id_post(id):
 
+    if int(id) not in idBytes.keys():
+        return 'Music not found', 404
+    
+    if int(id) in idTracks.keys():
+        return 'Music already submitted', 405
+
+
     if int(id) not in idTracks.keys():
         instruments = request.form.get('instruments')
         idTracks[int(id)] = instruments.split(',')
         if instruments == None:
-            return 'No instruments were selected for this music. Please select at least one instrument to separate'
+            return 'Invalid Track', 405
+
+        for instrument in idTracks[int(id)]:
+            if instrument not in ['bass', 'drums', 'vocals', 'other']:
+                return 'Invalid Track', 405
 
     
 
@@ -211,7 +227,7 @@ def music_id_post(id):
     id = int(id)
     # if id does not exist, meaning that the music was not submitted
     if id not in id_usados:
-        return 'No such ID was found. Try submitting the music again and using the generated ID'
+        return 'Music not found', 404
 
     # the music is going to be processed by the worker here
     musicBytes = idBytes[id]
@@ -261,12 +277,15 @@ def music_id_post(id):
         # release the mutex
         mutex.release()
 
-    return 'The music is being processed. To check the status of the process and later download the file, go to: localhost:5000/music/' + str(id)
+    return 'successful operation', 200
 
 @app.route('/music/<id>', methods=['GET'])
 # @profile
 def music_id_get(id):
     ## get the state of the task, if it is at 100% it is done -> generate the file
+
+    if int(id) not in callbacks:
+        return 'Music not found', 404
 
     # no need to see everything again
     if int(id) in idProgress.keys():
@@ -407,27 +426,29 @@ def music_id_get(id):
 
     idProgress[int(id)] = progress
 
-    return render_template('generatedLinks.html', instrumentLinks=progress.instruments, finalLink=progress.final)
+    return jsonify(toDictProgress(progress)), 200
 
 
 @app.route('/job', methods=['GET'])
 def job_get():
-    returnJobs = []
+    try:
+        returnJobs = []
 
-    for job in jobs:
-        returnJobs.append(job.job_id)
+        for job in jobs:
+            returnJobs.append(job.job_id)
 
-    return jsonify(returnJobs)
-
+        return jsonify(returnJobs)
+    except:
+        return 'Invalid input', 405
 
 @app.route('/job/<id>', methods=['GET'])
 def job_get_id(id):
     # returns id, size, time, music_id, track_id
     for job in jobs:
         if int(id) == job.job_id:
-            return jsonify(toDictJob(job))                                                                                                 
+            return jsonify(toDictJob(job)), 200                                                                                                
     
-    return "Job Not Found! Please make sure you selected the right ID Job"
+    return 'Job not found', 405
 
 
 @app.route('/reset', methods=['POST'])
@@ -478,7 +499,7 @@ def reset():
             dirPath = os.path.join(root, dir)
             shutil.rmtree(dirPath)
 
-    return 'Server has been reseted successfully!'
+    return 'successful operation', 200
 
 
 # creates the music object
@@ -512,9 +533,9 @@ def createMusicObj(name, band):
 
     # if the music already exists in the server, there is no need to create a new Obj   
     # fro now if it is known --> new music
-    for musica in musicas:
-        if musica.name == name and musica.name != 'Unknown' and musica.band == band and musica.band != 'Unknown':
-            return musica
+    # for musica in musicas:
+    #     if musica.name == name and musica.name != 'Unknown' and musica.band == band and musica.band != 'Unknown':
+    #         return musica
     
 
     id = generateID()
@@ -554,6 +575,20 @@ def toDictJob(job : Job):
         "time": job.time,
         "music_id": job.music_id,
         "track_id" : job.track_id
+    }
+
+def toDictProgress(progress : Progress):
+    temp = []
+    for instrument in progress.instruments:
+        temp.append({
+            "name": instrument.name,
+            "track": instrument.track
+        })
+
+    return {
+        "progress": progress.progress,
+        "instruments": temp,
+        "final": progress.final
     }
 
 
