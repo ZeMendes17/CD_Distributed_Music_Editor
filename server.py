@@ -9,6 +9,7 @@ from mutagen.id3 import ID3
 from pydub import AudioSegment
 from celery import Celery
 from sys import getsizeof
+import gc
 
 # to remove the files and directories of the static directory
 import os
@@ -290,12 +291,10 @@ def music_id_get(id):
     # no need to see everything again
     if int(id) in idProgress.keys():
         progress = idProgress[int(id)]
-        return render_template('generatedLinks.html', instrumentLinks=progress.instruments, finalLink=progress.final)
-
-    
+        return jsonify(toDictProgress(progress)), 200
+        # return render_template('generatedLinks.html', instrumentLinks=progress.instruments, finalLink=progress.final)    
     
     cbs = callbacks[int(id)]
-    print(cbs)
     total = 0
     successes = 0
 
@@ -427,7 +426,7 @@ def music_id_get(id):
     idProgress[int(id)] = progress
 
     return jsonify(toDictProgress(progress)), 200
-
+    # return render_template('generatedLinks.html', instrumentLinks=progress.instruments, finalLink=progress.final)
 
 @app.route('/job', methods=['GET'])
 def job_get():
@@ -498,6 +497,8 @@ def reset():
             print('Removing directory: ', dir)
             dirPath = os.path.join(root, dir)
             shutil.rmtree(dirPath)
+
+    gc.collect()
 
     return 'successful operation', 200
 
