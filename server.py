@@ -8,7 +8,6 @@ from io import BytesIO
 from mutagen.id3 import ID3
 from pydub import AudioSegment
 from celery import Celery
-from celery.result import AsyncResult
 from sys import getsizeof
 import time
 
@@ -16,11 +15,7 @@ import time
 import os
 import shutil
 
-# import json
-# import numpy as np
-# import torch
-# import tempfile
-
+from memory_profiler import profile
 
 
 app = Flask(__name__)
@@ -34,6 +29,7 @@ jobCallback = {} # dict to store --> key: id, value: job
 jobs = []
 percentage = 0
 tracks = []
+idProgress = {}
 
 
 # remove all the directories and files inside the static folder
@@ -198,6 +194,7 @@ def redirect_post():
         return redirect(url_for('music_id_get', id=musicID))
 
 @app.route('/music/<id>', methods=['POST'])
+@profile
 def music_id_post(id):
 
     if int(id) not in idTracks.keys():
@@ -244,12 +241,11 @@ def music_id_post(id):
             jobCallback[callback] = jobID
 
             jobSize = getsizeof(chunk)
-            jobTime = time.time()
             musicID = id
             track_id = []
 
             # create a job object
-            job = Job(jobID, jobSize, jobTime, musicID, track_id)
+            job = Job(jobID, jobSize, None, musicID, track_id)
 
             # store the job in the jobs list
             jobs.append(job)
@@ -269,26 +265,34 @@ def music_id_post(id):
     return 'The music is being processed. To check the status of the process and later download the file, go to: localhost:5000/music/' + str(id)
 
 @app.route('/music/<id>', methods=['GET'])
+@profile
 def music_id_get(id):
     ## get the state of the task, if it is at 100% it is done -> generate the file
+
+    # no need to see everything again
+    if int(id) in idProgress.keys():
+        progress = idProgress[int(id)]
+        return render_template('generatedLinks.html', instrumentLinks=progress.instruments, finalLink=progress.final)
+
+    
+    
     cbs = callbacks[int(id)]
+    print(cbs)
     total = 0
     successes = 0
 
-    temp = None
-
     for cb in cbs:
-        print(cb.state) # shows the state of each task sent SUCCESS, PENDING, FAILURE
+        # print(cb.state) # shows the state of each task sent SUCCESS, PENDING, FAILURE
         total += 1
         if(cb.state == 'SUCCESS'):
             jobID = jobCallback[cb]
             timestamp = cb.info[1]
 
             for job in jobs:
-                if job.job_id == jobID:
+                if job.job_id == jobID and job.time == None and job.track_id == []:
                     job.time = timestamp
                     tracksTemp = []
-                    for key in cb.info[0].keys():
+                    for key in range(4):
                         trackID = generateID()
 
                         #tracks.append(Track(trackID, key))
@@ -402,6 +406,8 @@ def music_id_get(id):
     progress.final = final
     progress.instruments = instruments
 
+    idProgress[int(id)] = progress
+
     return render_template('generatedLinks.html', instrumentLinks=progress.instruments, finalLink=progress.final)
 
 
@@ -432,10 +438,12 @@ def reset():
     global musicas
     global idBytes
     global jobs
-    global jobs
     global idTracks
     global percentage
     global callbacks
+    global tracks
+    global idProgress
+    global jobCallback
 
     # reset the workers
     command = 'celery -A worker purge -f'
@@ -450,11 +458,13 @@ def reset():
     id_usados = []
     musicas = []
     idBytes = {}
-    jobs = {}
-    jobs = []
     idTracks = {}
     callbacks = {}
+    jobCallback = {} # dict to store --> key: id, value: job
+    jobs = []
     percentage = 0
+    tracks = []
+    idProgress = {}
 
     # delete all the files in the static folder
     for root, dirs, files in os.walk('static', topdown=False):
