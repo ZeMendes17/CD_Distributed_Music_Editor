@@ -15,6 +15,7 @@ from demucs.audio import AudioFile, save_audio
 from celery import Celery
 import time
 import tempfile
+import torch
 
 
 app = Celery('worker', backend='rpc://', broker='amqp://guest:guest@localhost:5672//')
@@ -22,6 +23,9 @@ app.config_from_object('celeryconfig')
 
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
+
+# limit the number of threads to 1
+torch.set_num_threads(1)
 
 
 @app.task

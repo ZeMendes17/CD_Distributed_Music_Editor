@@ -173,7 +173,7 @@ def redirect_post():
         other = (request.form.get('other'))
         
         if bass == None and drums == None and vocals == None and other == None:
-            return 'No track was selected. Please select at least one track to separate'
+            return 'No tracks were selected for this music. Please select at least one track to separate'
         
         tracks = []
         if bass != None:
@@ -199,6 +199,15 @@ def redirect_post():
 
 @app.route('/music/<id>', methods=['POST'])
 def music_id_post(id):
+
+    if int(id) not in idTracks.keys():
+        instruments = request.form.get('instruments')
+        idTracks[int(id)] = instruments.split(',')
+        if instruments == None:
+            return 'No instruments were selected for this music. Please select at least one instrument to separate'
+
+    
+
     taskCounter = 0
     mutex = threading.Lock()
 
