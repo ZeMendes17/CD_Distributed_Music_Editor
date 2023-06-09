@@ -325,12 +325,58 @@ def music_id_get(id):
 
     # if the music is still being processed
     if percentage != 100:
-        return str(progress.progress)
+        return jsonify(
+            {
+                'progress': percentage,
+                'instruments': [
+                    {
+                        "name": 'bass',
+                        "track": ''
+                    },
+                    {
+                        "name": 'drums',
+                        "track": ''
+                    },
+                    {
+                        "name": 'vocals',
+                        "track": ''
+                    },
+                    {
+                        "name": 'other',
+                        "track": ''
+                    }
+                ],
+                'final': ''
+            }
+        ), 200
 
     # if it is at 100% but info is not yet available (should not happen)
     for cb in cbs:
         if(cb.info == None):
-            return str(progress.progress) 
+            return jsonify(
+            {
+                'progress': percentage,
+                'instruments': [
+                    {
+                        "name": 'bass',
+                        "track": ''
+                    },
+                    {
+                        "name": 'drums',
+                        "track": ''
+                    },
+                    {
+                        "name": 'vocals',
+                        "track": ''
+                    },
+                    {
+                        "name": 'other',
+                        "track": ''
+                    }
+                ],
+                'final': ''
+            }
+        ), 200
 
     # get the instruments selected by the user
     instruments = idTracks[int(id)]
