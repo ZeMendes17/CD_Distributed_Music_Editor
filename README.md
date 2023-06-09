@@ -51,6 +51,48 @@ To run test the sample code simple run:
 python main.py -i test.mp3
 ```
 
+## Test:
+In order to test the system it was created a run.sh file that by default send 2 workers but it can be set. This script
+tests the music "test.mp3":
+```
+./run.sh NUMBER_OF_WORKERS
+```
+
+POST /music:
+```
+curl -F "myfile=@FILE" http://localhost:5000/music
+```
+
+GET /music:
+```
+curl http://localhost:5000/music
+```
+
+POST /music/{music_id}:
+```
+curl -F "instruments=INSTRUMENTS_SEPARETED_BY_COMMAS" http://localhost:5000/music/{music_id}
+```
+
+GET /music/{music_id}:
+```
+curl http://localhost:5000/music/{music_id}
+```
+
+GET /job
+```
+curl http://localhost:5000/job
+```
+
+GET /job/{job_id}
+```
+curl http://localhost:5000/job/{job_id}
+```
+
+POST /reset
+```
+curl -X POST http://localhost:5000/reset
+```
+
 ## Authors
 
 * **Mário Antunes** - [mariolpantunes](https://github.com/mariolpantunes)
