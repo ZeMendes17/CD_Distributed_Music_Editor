@@ -9,13 +9,12 @@ from mutagen.id3 import ID3
 from pydub import AudioSegment
 from celery import Celery
 from sys import getsizeof
-import time
 
 # to remove the files and directories of the static directory
 import os
 import shutil
 
-from memory_profiler import profile
+# from memory_profiler import profile
 
 
 app = Flask(__name__)
@@ -194,7 +193,7 @@ def redirect_post():
         return redirect(url_for('music_id_get', id=musicID))
 
 @app.route('/music/<id>', methods=['POST'])
-@profile
+# @profile
 def music_id_post(id):
 
     if int(id) not in idTracks.keys():
@@ -265,7 +264,7 @@ def music_id_post(id):
     return 'The music is being processed. To check the status of the process and later download the file, go to: localhost:5000/music/' + str(id)
 
 @app.route('/music/<id>', methods=['GET'])
-@profile
+# @profile
 def music_id_get(id):
     ## get the state of the task, if it is at 100% it is done -> generate the file
 
