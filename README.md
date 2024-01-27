@@ -1,5 +1,8 @@
 # CD 2023 Project
 
+Final Project for the Distributed Computing class of 2022/2023. It aims to receive a song, divide it into chunks and process them in parallel in order to split the song into the different instruments.
+The user can then make the song with the wanted intruments.
+
 Grade: 18.25
 
 Here we have a sample code that loads one mp3 file and splits it 
